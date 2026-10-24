@@ -1,4 +1,4 @@
-from a2cr_launcher import cli
+import cli
 
 
 def main() -> None:
