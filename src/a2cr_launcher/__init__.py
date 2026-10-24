@@ -1,2 +1,5 @@
+from a2cr_launcher import cli
+
+
 def main() -> None:
-    print("Hello from a2cr-launcher!")
+    cli.main()
