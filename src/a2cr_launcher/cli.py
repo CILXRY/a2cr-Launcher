@@ -3,7 +3,7 @@ import sys
 
 import requests
 
-from meta.manifest import get_version_list
+from a2cr_launcher.meta.manifest import get_version_list
 
 parser = argparse.ArgumentParser(description='a2cr Minecraft Launcher')
 

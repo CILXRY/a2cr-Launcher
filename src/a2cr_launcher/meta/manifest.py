@@ -1,4 +1,4 @@
-from core.http_util import http_get
+from a2cr_launcher.core.http_util import http_get
 
 # Minecraft 版本列表
 MOJANG_VERSION_LIST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'

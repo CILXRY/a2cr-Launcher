@@ -5,7 +5,6 @@ from time import sleep
 import requests
 
 max_tries = 3
-target_dir = r"./aL"
 # 下载分片大小
 chunk_size = 1024 * 1024
 
@@ -28,7 +27,7 @@ def _download_file_to_disk(url, file_path):
     :return: 没有返回值
     """
     # 建立请求
-    req = requests.get(url, stream=True)
+    req = requests.get(url, stream=True, timeout=10)
     # 进度初始化
     downloaded = 0
     total_size = int(req.headers.get('content-length', 0))
@@ -43,46 +42,48 @@ def _download_file_to_disk(url, file_path):
             # 写入
             f.write(chunk)
             downloaded += len(chunk)
-            print(f"当前下载进度: {downloaded / 1048576:.2f}/{total_size / 1048576:.2f} MB", flush=True)
+            print(f"当前下载进度: {downloaded / 1048576:.2f}/{total_size / 1048576:.2f} MB", end="\r", flush=True)
 
 
-def download_file(url, file_hash=""):
+def download_file(url, dest_dir: Path, file_sha1=""):
     """
     对外所用的文件下载, 集成了 文件哈希,错误重试,创建文件 的整体函数
-    :param file_hash: 文件哈希
+    :param dest_dir: 目标文件夹位置
+    :param file_sha1: 文件哈希
     :param url: 文件地址
     :return: 正常下载返回 0, 下载出错(最大尝试之后都出错)返回 1
     """
 
     # 文件路径和默认哈希
-    file_path = Path(target_dir, url.split('/')[-1])
+    file_path = Path(dest_dir, url.split('/')[-1])
     temp_file_path = file_path.with_suffix(file_path.suffix + ".part")
-    if not file_hash:
-        file_hash = url.split('/')[-2]
 
-    # 检查目标文件夹在不在
-    is_target_dir_exist = Path.exists(target_dir)
-    if not is_target_dir_exist:
-        _create_dir(target_dir)
+    # 创建目标文件夹
+    _create_dir(dest_dir)
 
     print(f"准备下载 {file_path}")
-    for i in range(max_tries):
+    for _ in range(max_tries):
         try:
             _download_file_to_disk(url, temp_file_path)
         except requests.RequestException as e:
+            print(f"下载请求出错，重试。\n错误原因: {e}")
             sleep(1)
-        sha1 = _hash_file(temp_file_path)
-        if sha1 == file_hash:
-            Path.replace(temp_file_path, file_path)
+            continue
+        try:
+            sha1 = _hash_file(temp_file_path)
+        except FileNotFoundError as e:
+            print(f"文件 {file_path} 不存在，重新尝试")
+            continue
+        if not file_sha1 or sha1 == file_sha1:
+            temp_file_path.replace(file_path)
             print(f"下载 {file_path} 完成")
             return 0
+
         else:
             print(f"Hash 校验出错, 重试...")
     return 1
 
 
 if __name__ == '__main__':
-    _create_dir(target_dir)
-    download_file(
-        "https://piston-data.mojang.com/v1/objects/0c3ec587af28e5a785c0b4a7b8a30f9a8f78f838/client.jar"
-    )
+    target_url = "https://piston-data.mojang.com/v1/objects/dabe2b9759859995565e7d01c4a96d05043718ee/client.jar"
+    print(download_file(target_url, "./aL", file_sha1='dabe2b9759859995565e7d01c4a96d05043718ee'))
