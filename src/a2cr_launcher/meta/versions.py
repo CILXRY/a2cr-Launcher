@@ -1,18 +1,12 @@
-import json
-
 from a2cr_launcher.core.http_util import http_get
 from a2cr_launcher.meta.manifest import find_version
 
 
 def get_version_meta(version_id: str) -> dict:
-    try:
-        version_meta_url = find_version(version_id).get("url")
-    except ValueError:
-        raise ValueError(f"版本不存在: {version_id}")
+    version_meta_url = find_version(version_id).get("url")
 
     meta = http_get(version_meta_url).json()
     libraries = meta.get("libraries")
-
     main_class = meta.get('mainClass')
     asset_index_id = meta.get('assetIndex').get('id')
     asset_index_url = meta.get('assetIndex').get('url')
