@@ -1,3 +1,5 @@
+import json
+
 from a2cr_launcher.core.http_util import http_get
 from a2cr_launcher.meta.manifest import find_version
 
@@ -9,11 +11,12 @@ def get_version_meta(version_id: str) -> dict:
         raise ValueError(f"版本不存在: {version_id}")
 
     meta = http_get(version_meta_url).json()
+    libraries = meta.get("libraries")
 
     main_class = meta.get('mainClass')
     asset_index_id = meta.get('assetIndex').get('id')
     asset_index_url = meta.get('assetIndex').get('url')
-    libraries_len = len(meta.get("libraries"))
+    libraries_len = len(libraries)
     name_of_first_library = meta.get("libraries")[0].get("name")
     downloads_client_url = meta.get('downloads').get('client').get('url')
     downloads_client_sha1 = meta.get('downloads').get('client').get('sha1')
@@ -22,7 +25,7 @@ def get_version_meta(version_id: str) -> dict:
     return {"main_class": main_class, "asset_index_id": asset_index_id, "asset_index_url": asset_index_url,
             "libraries_len": libraries_len, "name_of_first_library": name_of_first_library,
             "downloads_client_url": downloads_client_url, "downloads_client_sha1": downloads_client_sha1,
-            "java_version": java_version}
+            "java_version": java_version, "libraries": libraries}
 
 
 if '__main__' == __name__:
