@@ -8,4 +8,7 @@
     <orderEntry type="jdk" jdkName="~\Documents\a2Cr_Launcher\.venv" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
+  <component name="PyDocumentationSettings">
+    <option name="format" value="GOOGLE" />
+  </component>
 </module>
