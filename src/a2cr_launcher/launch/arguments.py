@@ -92,6 +92,5 @@ def build_arguments(meta, name="a2Cr"):
 
     # Game Arguments
     arguments.extend(_build_game_arguments(arg_raw, values))
-    print(arguments)
 
     return arguments
