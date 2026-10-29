@@ -4,10 +4,11 @@ from pathlib import Path
 from a2cr_launcher.launch.rules import is_allowed
 
 
-def build_classpath(meta, libraries_dir, os_name, os_arch):
+def build_classpath(meta, libraries_dir, os_name, os_arch, client_jar):
     """
     直接返回传入参数所使用的 classpath
     Args:
+        client_jar (str): 版本 jar 的位置
         meta (dict): 版本 meta 文件
         libraries_dir (Path):  运行库文件夹
         os_name (str): 系统名称
@@ -22,5 +23,6 @@ def build_classpath(meta, libraries_dir, os_name, os_arch):
     # 取 path
     paths = [l['downloads']['artifact']['path'] for l in allowed]
     classpath = f"{pathsep}".join(str(Path(libraries_dir, path)) for path in paths)
+    classpath += f"{pathsep}{client_jar}"
 
     return classpath
