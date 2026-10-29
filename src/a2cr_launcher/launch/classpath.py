@@ -1,23 +1,26 @@
+from os import pathsep
 from pathlib import Path
 
 from a2cr_launcher.launch.rules import is_allowed
-from a2cr_launcher.meta.versions import get_version_meta
 
 
-def build_classpath(meta, libraries_dir: Path, os_name: str, os_arch: str) -> list[Path]:
+def build_classpath(meta, libraries_dir, os_name, os_arch):
+    """
+    直接返回传入参数所使用的 classpath
+    Args:
+        meta (dict): 版本 meta 文件
+        libraries_dir (Path):  运行库文件夹
+        os_name (str): 系统名称
+        os_arch (str): 系统架构
+
+    Returns:
+        str: 可直接使用的 classpath
+    """
     # allowed 过滤
     allowed = [l for l in meta["libraries"] if is_allowed(l.get("rules", []), os_name, os_arch)]
 
     # 取 path
     paths = [l['downloads']['artifact']['path'] for l in allowed]
-    classpath = [Path(libraries_dir, path) for path in paths]
+    classpath = f"{pathsep}".join(str(Path(libraries_dir, path)) for path in paths)
 
     return classpath
-
-
-if __name__ == "__main__":
-    meta_26_2 = get_version_meta("26.2")
-
-    print(len(build_classpath(meta_26_2, Path("libraries"), "windows", "x86_64")))
-    print(build_classpath(meta_26_2, Path("libraries"), "windows", "x86_64"))
-    print(len(build_classpath(meta_26_2, Path("libraries"), "osx", "x86_64")))
