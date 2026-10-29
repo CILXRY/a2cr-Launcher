@@ -11,3 +11,7 @@ wheels/
 
 # Launcher File
 /aL/
+
+# IDE File
+.idea
+.vscode
