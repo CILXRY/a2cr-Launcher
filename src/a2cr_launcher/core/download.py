@@ -46,7 +46,7 @@ def _download_file_to_disk(url, file_path):
             downloaded += len(chunk)
 
 
-def download_file(url, dest: Path, file_sha1=""):
+def download_file(url: str, dest: Path, file_sha1: str = "") -> str:
     """
     对外所用的文件下载, 集成了 文件哈希,错误重试,创建文件 的整体函数
     :param dest: 目标文件夹位置
@@ -120,4 +120,12 @@ def download(targets: list[tuple[str, Path, str, int]]):
 
 
 if __name__ == '__main__':
-    pass
+    from a2cr_launcher.meta.versions import get_version_meta
+    from a2cr_launcher.core.paths import ASSETS_DIR
+    from a2cr_launcher.meta.assets import build_asset_downloads, fetch_asset_index
+
+    asset_index: tuple = (get_version_meta('26.2').get('asset_index_url', ""),
+                          get_version_meta('26.2').get('asset_index_sha1', ""))
+    assets = fetch_asset_index(asset_index[0], Path(ASSETS_DIR, f'indexes/{asset_index[0].split("/")[-1]}'),
+                               asset_index[1])
+    download(build_asset_downloads(assets.get('objects', {}), ASSETS_DIR))
