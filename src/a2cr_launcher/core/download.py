@@ -13,21 +13,28 @@ CHUNK_SIZE = 1024 * 1024
 
 
 def _hash_file(file_path):
+    """
+    对给定 file 进行 sha1 计算
+    Args:
+        file_path (Path): 目标文件路径
+
+    Returns:
+        str: 文件哈希
+    """
     with open(file_path, 'rb') as file:
         digest = hashlib.file_digest(file, 'sha1')
         return digest.hexdigest()
 
 
-def _create_dir(file_path):
-    Path(file_path).mkdir(parents=True, exist_ok=True)
-
-
-def _download_file_to_disk(url, file_path):
+def _download_file_to_disk(url, dest):
     """
-    单次请求的文件下载函数
-    :param url: 文件地址
-    :param file_path: 文件地址
-    :return: 没有返回值
+    单次请求文件，将文件下载到本地函数
+    Args:
+        url (str): 文件 URL
+        dest (Path): 文件路径
+
+    Returns:
+        None
     """
     # 建立请求
     req = requests.get(url, stream=True, timeout=10)
@@ -37,7 +44,7 @@ def _download_file_to_disk(url, file_path):
     req.raise_for_status()
 
     # 分片下载文件
-    with open(file_path, 'wb') as f:
+    with open(dest, 'wb') as f:
         # 用 iter_content 来给文件分片, 分到各个 chunk 里
         # 不要把 for 循环和 with 的顺序写反, 否则到最后就只剩最后的那个 chunk的内容了
         for chunk in req.iter_content(CHUNK_SIZE):
@@ -46,13 +53,17 @@ def _download_file_to_disk(url, file_path):
             downloaded += len(chunk)
 
 
-def download_file(url: str, dest: Path, file_sha1: str = "") -> str:
+def download_file(url, dest, file_sha1=""):
     """
     对外所用的文件下载, 集成了 文件哈希,错误重试,创建文件 的整体函数
-    :param dest: 目标文件夹位置
-    :param file_sha1: 文件哈希
-    :param url: 文件地址
-    :return: 正常下载返回 success, 下载出错(最大尝试之后都出错)返回 failed, 跳过下载(哈希校验)返回 skipped
+    Args:
+        url (str): 文件地址
+        dest (Path): 文件保存位置
+        file_sha1 (str): 文件哈希
+
+    Returns:
+        str: 结果："success", "failed", "skipped" 其中之一
+
     """
 
     # 文件路径和默认哈希
@@ -60,7 +71,7 @@ def download_file(url: str, dest: Path, file_sha1: str = "") -> str:
     temp_file_path = file_path.with_suffix(file_path.suffix + ".part")
 
     # 创建目标文件夹
-    _create_dir(dest.parent)
+    Path(dest.parent).mkdir(parents=True, exist_ok=True)
 
     # 检测有没有原有文件（强制哈希校验）
     if file_path.is_file() and _hash_file(file_path) == file_sha1:
@@ -110,13 +121,16 @@ def download(targets: list[tuple[str, Path, str, int]]):
                 failed_dest[dest] = "download failed"
             elif result == "skipped":
                 skipped += 1
-            print(f"[{done}/{len(targets)}] {result:7s} {dest.name}")
+            # print(f"[{done}/{len(targets)}] {result:7s} {dest.name}")
         print("==" * 20)
         print(f"结束：成功 {success} 个，跳过 {skipped} 个，失败 {failed} 个。\n")
         if success + skipped + failed != len(targets):
             print(f"有任务丢失，请尝试重新下载。")
+            return False
         if failed_dest:
             print(f"失败列表：\n", "\n".join(map(str, failed_dest.items())))
+            return False
+    return True
 
 
 if __name__ == '__main__':
