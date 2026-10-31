@@ -50,7 +50,7 @@ def is_allowed(rules, os_name, os_arch, features=None) -> bool:
     return False
 
 
-def feature_rule_list(target_rules, current_features, variables=None):
+def feature_rule_list(target_rules, os_name, os_arch, current_features, variables=None):
     """
     根据已启用的规则集返回参数集
     Args:
@@ -63,36 +63,45 @@ def feature_rule_list(target_rules, current_features, variables=None):
     """
     args = []
     for item in target_rules:
-        rules = item.get("rules", {})
+        if not is_allowed(item.get("rules", []), os_name, os_arch, current_features):
+            continue
         value = item.get("value")
-
-        allowed = False
-        # 检查值
-        for rule in rules:
-            action = rule.get("action")
-            required = rule.get("features")
-
-            is_match = True
-            for key, expected_value in required.items():
-                if current_features.get(key) != expected_value:
-                    is_match = False
-                    break
-            if is_match and action == "allow":
-                allowed = True
-                break
-
-        # 替换值
-        if allowed:
-            value_to_process = []
-            if type(value) == str:
-                value_to_process = [value]
-            elif type(value) == list:
-                value_to_process = value
-
-            for v in value_to_process:
-                processed = Template(v).substitute(variables)
-                args.append(processed)
+        value_to_process = [value] if isinstance(value, str) else value
+        for v in value_to_process:
+            args.append(Template(v).substitute(variables))
     return args
+    # args = []
+    #
+    # for item in target_rules:
+    #     rules = item.get("rules", {})
+    #     value = item.get("value")
+    #
+    #     # 检查值
+    #     for rule in rules:
+    #         action = rule.get("action")
+    #         required = rule.get("features")
+    #
+    #         is_match = True
+    #         for key, expected_value in required.items():
+    #             if current_features.get(key) != expected_value:
+    #                 is_match = False
+    #                 break
+    #         if is_match and action == "allow":
+    #             allowed = True
+    #             break
+    #
+    #     # 替换值
+    #     if allowed:
+    #         value_to_process = []
+    #         if type(value) == str:
+    #             value_to_process = [value]
+    #         elif type(value) == list:
+    #             value_to_process = value
+    #
+    #         for v in value_to_process:
+    #             processed = Template(v).substitute(variables)
+    #             args.append(processed)
+    # return args
 
 
 if __name__ == '__main__':
@@ -180,8 +189,8 @@ if __name__ == '__main__':
             ]
         }
     ]
-    print(feature_rule_list(tr, {"is_demo_user": True, "has_custom_resolution": True},
-                            {"resolution_width": 1920, "resolution_height": 1080}))
+    # print(feature_rule_list(tr, {"is_demo_user": True, "has_custom_resolution": True},
+    #                         {"resolution_width": 1920, "resolution_height": 1080}))
 
 # if __name__ == '__main__':
 #     cases = [

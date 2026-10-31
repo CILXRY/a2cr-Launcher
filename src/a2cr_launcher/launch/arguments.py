@@ -11,10 +11,15 @@ from a2cr_launcher.launch.rules import is_allowed, feature_rule_list
 
 def _build_java_arguments(arg_raw, values, meta, dropped_args):
     arguments = []
+
+    # Memory
+    arguments.append("-Xmx4G")
+    arguments.append("-Xms4G")
+
     # Java Args
     for arg in arg_raw.get('jvm'):
         if type(arg) is dict:
-            if is_allowed([arg["rules"][0]], current_platform()[0], current_platform()[1]):
+            if is_allowed(arg["rules"], current_platform()[0], current_platform()[1]):
                 if type(arg["value"]) is list:
                     # 这里用extend是指把arg["value"]里的值全部追加给arguments
                     arguments.extend(arg["value"])
@@ -46,7 +51,12 @@ def _build_game_arguments(arg_raw, values):
     arguments = []
     for arg in arg_raw.get('game'):
         if type(arg) is dict:
-            result = feature_rule_list([arg], values["current_features"], values["feature_variables"])
+            # if is_allowed(arg["rules"], current_platform()[0], current_platform()[1], values["current_features"]):
+            #     arguments.append(Template(
+            #         *(arg.get("values")) if isinstance(arg.get("values"), str) else arg.get("values")).substitute(
+            #         values["current_features"]))
+            result = feature_rule_list([arg], current_platform()[0], current_platform()[1], values["current_features"],
+                                       values["feature_variables"])
             if result: arguments.extend(result)
         elif type(arg) is str:
             result = Template(arg).substitute(auth_player_name=values["auth_player_name"],
@@ -85,7 +95,7 @@ def build_arguments(meta, game_dir: Path, name="a2Cr", ):
                              "is_quick_play_singleplayer": False, "is_quick_play_multiplayer": False,
                              "is_quick_play_realms": False},
         "feature_variables": {"resolution_width": 1920, "resolution_height": 1080, "quickPlayPath": "",
-                              "quickPlaySinglePlayer": "", "quickPlayMultiplayer": "", "quickPlayRealms": ""},
+                              "quickPlaySingleplayer": "", "quickPlayMultiplayer": "", "quickPlayRealms": ""},
         "user_type": "legacy"
     }
 
@@ -103,8 +113,3 @@ def build_arguments(meta, game_dir: Path, name="a2Cr", ):
     arguments.extend(_build_game_arguments(arg_raw, values, ))
 
     return arguments
-
-# if __name__ == "__main__":
-#     from a2cr_launcher.meta.versions import get_version_meta
-#
-#     print(build_arguments(get_version_meta("1.13")))
