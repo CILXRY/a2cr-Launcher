@@ -96,7 +96,6 @@ def find_java(required, *custom_paths):
             candidates.append((java[1] - required, java[0]))
 
     candidates.sort()
-    breakpoint()
 
     best_match = candidates[0]
     return str(Path(best_match[1], "bin", "java.exe"))
