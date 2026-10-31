@@ -5,6 +5,7 @@ from sys import exit
 from requests import RequestException
 
 from a2cr_launcher.core.paths import VERSIONS_DIR, LIBRARIES_DIR, ASSETS_DIR, INSTANCES_DIR
+from a2cr_launcher.core.platform_info import current_platform
 from a2cr_launcher.launch.arguments import build_arguments
 from a2cr_launcher.launch.install import download_client, download_logging, download_assets, download_libraries
 from a2cr_launcher.launch.process import launch
@@ -28,6 +29,10 @@ def main():
     launch_parser.add_argument('--version', action='store')
 
     args = parser.parse_args()
+
+    if "unknown" in current_platform():
+        print("检测到不支持的系统。")
+        exit(1)
 
     if args.command == 'version':
         try:
