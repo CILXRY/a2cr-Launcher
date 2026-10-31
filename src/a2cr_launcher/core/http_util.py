@@ -1,4 +1,4 @@
-import time
+from time import sleep
 
 import requests
 
@@ -10,8 +10,8 @@ def http_get(url):
         try:
             response = requests.get(url, timeout=10)
             response.raise_for_status()
-        except requests.exceptions.ConnectionError:
-            time.sleep(1)
+        except requests.exceptions.RequestException:
+            sleep(1)
             continue
         return response
-    return None
+    raise requests.RequestException
