@@ -1,33 +1,37 @@
 from string import Template
 
 
-def _os_rule_matches(target_rule, current_os):
+def _rule_matches(target_rule, current_os, current_features=None):
     """
-    判断系统和架构规则
+    判断一条规则是否符合可用规则
     Args:
-        target_rule (tuple[str, str]): (目标系统, 目标架构)
+        target_rule (dict): {"action": "allow", "features": {"is_demo_user": true}} | {"action": "allow","os": {"name": "osx"}}
         current_os (tuple[str, str]): (当前系统, 当前架构)
+        current_features (dict): {"is_demo_user": true}
 
     Returns:
         bool: 通过结果
     """
-    # 判断系统规则
-    if target_rule[0] and target_rule[0] != current_os[0]:
-        return False
+    target_os_rule: dict = target_rule.get("os", {})  # 存放系统规则
+    target_features: dict = target_rule.get("features", {})  # 存放功能规则
 
-    # 判断架构规则
-    elif target_rule[1] and target_rule[1] != current_os[1]:
-        return False
+    if target_os_rule:
+        if "name" in target_os_rule and target_os_rule["name"] != current_os[0]: return False  # 判断系统规则
+        if "arch" in target_os_rule and target_os_rule["arch"] != current_os[1]: return False  # 判断架构规则
+
+    for key, wanted_value in target_features.items():
+        if current_features.get(key, False) != wanted_value: return False  # 判断功能规则
 
     # 全通过则符合规则
     return True
 
 
-def is_allowed(rules, os_name, os_arch) -> bool:
+def is_allowed(rules, os_name, os_arch, features=None) -> bool:
     """
     返回一组规则是否可以被允许
     Args:
-        rules (list[dict]): 规则 ex: `[{"action": "allow"}, {"action": "disallow", "os": {"name": ""}}]`
+        features: 当前功能设置
+        rules (list[dict]): 规则集 ex: `[{"action": "allow"}, {"action": "disallow", "os": {"name": ""}}]`
         os_name (str): 系统名
         os_arch (str): 系统架构
 
@@ -38,11 +42,11 @@ def is_allowed(rules, os_name, os_arch) -> bool:
     # 空规则集情况
     if not rules:
         return True
+
     for rule in reversed(rules):
-        target_os = rule.get("os", {}).get("name")
-        target_arch = rule.get("os", {}).get("arch")
-        if _os_rule_matches((target_os, target_arch), (os_name, os_arch)):
+        if _rule_matches(rule, (os_name, os_arch), features):
             return rule.get("action") == "allow"
+
     return False
 
 
