@@ -1,7 +1,17 @@
+import time
+
 import requests
+
+from a2cr_launcher.core.download import MAX_RETRY
 
 
 def http_get(url):
-    response = requests.get(url, timeout=10)
-    response.raise_for_status()
-    return response
+    for _ in range(MAX_RETRY):
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+        except requests.exceptions.ConnectionError:
+            time.sleep(1)
+            continue
+        return response
+    return None
