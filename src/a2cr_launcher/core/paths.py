@@ -9,3 +9,5 @@ ASSETS_DIR = ROOT_DIR / "assets"
 LIBRARIES_DIR = ROOT_DIR / "libraries"
 # 版本文件夹
 VERSIONS_DIR = ROOT_DIR / "versions"
+# 实例文件夹
+INSTANCES_DIR = ROOT_DIR / "instances"
