@@ -1,3 +1,4 @@
+from os import pathsep
 from pathlib import Path
 from string import Template
 
@@ -9,30 +10,31 @@ from a2cr_launcher.launch.classpath import build_classpath
 from a2cr_launcher.launch.rules import is_allowed, feature_rule_list
 
 
+def _substitute(value, values):
+    """替换参数里的 ${...} 占位符。"""
+    return Template(value).substitute(values) if isinstance(value, str) else value
+
+
 def _build_java_arguments(arg_raw, values, meta, dropped_args):
     arguments = []
 
     # Memory
-    arguments.append("-Xmx4G")
-    arguments.append("-Xms4G")
+    arguments.append(f"-Xmx{values['max_memory']}")
+    arguments.append(f"-Xms{values['max_memory']}")
 
     # Java Args
-    for arg in arg_raw.get('jvm'):
+    for arg in arg_raw.get('jvm') or []:
         if type(arg) is dict:
             if is_allowed(arg["rules"], current_platform()[0], current_platform()[1]):
                 if type(arg["value"]) is list:
                     # 这里用extend是指把arg["value"]里的值全部追加给arguments
-                    arguments.extend(arg["value"])
+                    arguments.extend(_substitute(item, values) for item in arg["value"])
                 else:
-                    arguments.append(arg["value"])
+                    arguments.append(_substitute(arg["value"], values))
             else:
                 dropped_args.append(arg)
         elif type(arg) is str:
-            result = Template(arg).substitute(natives_directory=values["natives_directory"],
-                                              launcher_name=values["launcher_name"],
-                                              launcher_version=values["launcher_version"],
-                                              classpath=values["classpath"])
-            arguments.append(result)
+            arguments.append(_substitute(arg, values))
         else:
             dropped_args.append(arg)
 
@@ -49,34 +51,25 @@ def _build_java_arguments(arg_raw, values, meta, dropped_args):
 
 def _build_game_arguments(arg_raw, values):
     arguments = []
-    for arg in arg_raw.get('game'):
+    for arg in arg_raw.get('game') or []:
         if type(arg) is dict:
-            # if is_allowed(arg["rules"], current_platform()[0], current_platform()[1], values["current_features"]):
-            #     arguments.append(Template(
-            #         *(arg.get("values")) if isinstance(arg.get("values"), str) else arg.get("values")).substitute(
-            #         values["current_features"]))
             result = feature_rule_list([arg], current_platform()[0], current_platform()[1], values["current_features"],
                                        values["feature_variables"])
-            if result: arguments.extend(result)
+            if result:
+                arguments.extend(result)
         elif type(arg) is str:
-            result = Template(arg).substitute(auth_player_name=values["auth_player_name"],
-                                              version_name=values["version_name"],
-                                              game_directory=values["game_directory"],
-                                              assets_root=values["assets_root"],
-                                              assets_index_name=values["assets_index_name"],
-                                              auth_uuid=values["auth_uuid"],
-                                              auth_access_token=values["auth_access_token"],
-                                              clientid=values["clientid"],
-                                              auth_xuid=values["auth_xuid"],
-                                              version_type=values["version_type"],
-                                              user_type=values["user_type"],
-                                              )
-            arguments.append(result)
+            arguments.append(_substitute(arg, values))
     return arguments
 
 
-def build_arguments(meta, game_dir: Path, name="a2Cr", ):
+def build_arguments(meta, game_dir: Path, name="a2Cr", max_memory="4G"):
     version = meta["id"]
+    base_version = meta.get("_baseVersion", version)
+    main_class = str(meta.get("mainClass") or "")
+    # Forge/NeoForge 的 BootstrapLauncher 会自己把打过补丁的 minecraft jar 加进模块层，
+    # 再把原版 client.jar 一起放进去会出现两个导出同一包的模块（minecraft 和 client），
+    # 模块解析直接失败。原版 / Fabric / Quilt 则需要这个 client.jar。
+    include_client = "bootstraplauncher" not in main_class.lower()
     values = {
         "auth_player_name": name,
         "version_name": version,
@@ -86,17 +79,21 @@ def build_arguments(meta, game_dir: Path, name="a2Cr", ):
         "auth_uuid": offline_uuid(name),
         "auth_access_token": "0",
         "clientid": "", "auth_xuid": "",
-        "version_type": meta["type"],
+        "user_type": "legacy",
+        "version_type": meta.get("type", "release"),
         "natives_directory": str(Path(VERSIONS_DIR, version, "natives")),
-        "launcher_name": "a2cr-launcher", "launcher_version": "0.1",
+        "library_directory": str(LIBRARIES_DIR),
+        "classpath_separator": pathsep,
+        "launcher_name": "a2cr-launcher", "launcher_version": "0.2",
+        "max_memory": max_memory,
         "classpath": build_classpath(meta, LIBRARIES_DIR, current_platform()[0], current_platform()[1],
-                                     str(Path(VERSIONS_DIR, version, "client.jar"))),
+                                     str(Path(VERSIONS_DIR, base_version, "client.jar")),
+                                     include_client=include_client),
         "current_features": {"is_demo_user": False, "has_custom_resolution": False, "has_quick_plays_support": False,
                              "is_quick_play_singleplayer": False, "is_quick_play_multiplayer": False,
                              "is_quick_play_realms": False},
         "feature_variables": {"resolution_width": 1920, "resolution_height": 1080, "quickPlayPath": "",
                               "quickPlaySingleplayer": "", "quickPlayMultiplayer": "", "quickPlayRealms": ""},
-        "user_type": "legacy"
     }
 
     arguments = []

@@ -5,6 +5,27 @@ import subprocess
 from pathlib import Path
 
 
+def _iter_subdirs(root: Path) -> list[Path]:
+    """列出目录下的子目录，目录不存在或没有权限时返回空列表。"""
+    try:
+        return [path for path in root.iterdir() if path.is_dir()]
+    except OSError:
+        return []
+
+
+def _mojang_runtime_roots() -> list[Path]:
+    """官方启动器 / 微软商店版启动器下载 Java 运行时的位置。"""
+    roots = []
+    appdata = os.getenv("APPDATA")
+    if appdata:
+        roots.append(Path(appdata, ".minecraft", "runtime"))
+    localappdata = os.getenv("LOCALAPPDATA")
+    if localappdata:
+        roots.append(Path(localappdata, "Packages", "Microsoft.4297127D64EC6_8wekyb3d8bbwe",
+                          "LocalCache", "Local", "runtime"))
+    return roots
+
+
 def get_java_version(path) -> tuple[int, str] | None:
     """
     返回给定的 path 里的 Java 版本
@@ -14,6 +35,7 @@ def get_java_version(path) -> tuple[int, str] | None:
     Returns:
         tuple[int, str] | None: 目录里的 Java 版本
     """
+    path = Path(path)
     java_path = Path(path, 'bin', "java.exe")
     version = ''
 
@@ -31,8 +53,11 @@ def get_java_version(path) -> tuple[int, str] | None:
         return version_code
 
     def __get_version_by_release_file(file):
-        with open(Path(file), 'r') as f:
-            f_content = f.readlines()
+        try:
+            with open(Path(file), 'r', encoding="utf-8", errors="replace") as f:
+                f_content = f.readlines()
+        except OSError:
+            return None
 
         if f_content:
             for line in f_content:
@@ -41,7 +66,11 @@ def get_java_version(path) -> tuple[int, str] | None:
         return None
 
     def __get_version_by_executable_file(file):
-        application_return = subprocess.run([file, '-version'], capture_output=True, text=True).stderr
+        try:
+            application_return = subprocess.run([str(file), '-version'], capture_output=True, text=True,
+                                                timeout=10).stderr
+        except (OSError, subprocess.SubprocessError):
+            return None
         v = re.search(r'version "([^"]+)"', application_return)
         return __analysis_version_code(v.group(1)) if v else None
 
@@ -50,38 +79,48 @@ def get_java_version(path) -> tuple[int, str] | None:
 
     # 根据 path 下的 release 文件判断版本
     if Path(path, 'release').is_file():
-        version = __get_version_by_release_file(Path(path, 'release'))
+        version = __get_version_by_release_file(Path(path, 'release')) or ""
 
     # 根据可执行文件结果判断版本
     if version == "" and java_path.is_file():
-        version = __get_version_by_executable_file(java_path)
+        version = __get_version_by_executable_file(java_path) or ""
 
     return (int(version.split(".")[0]), version) if version else None
 
 
 def list_jdks(*custom_paths: Path):
     searched: list[tuple[Path, int]] = []
+    searches: list[Path] = []
 
-    searches = [Path(str(os.getenv("JAVA_HOME"))),
-                *list(Path(str(os.getenv("ProgramFiles")), "Zulu").glob("*")),
-                *list(Path(str(os.getenv("ProgramFiles")), "Java").glob("*")),
-                *list(Path(str(os.getenv("ProgramFiles")), "Eclipse Adoptium").glob("*")),
-                *custom_paths]
+    java_home = os.getenv("JAVA_HOME")
+    if java_home:
+        searches.append(Path(java_home))
+
+    program_files = os.getenv("ProgramFiles")
+    if program_files:
+        base = Path(program_files)
+        for vendor in ("Zulu", "Java", "Eclipse Adoptium", "Microsoft", "BellSoft", "Amazon Corretto", "Semeru"):
+            searches.extend(_iter_subdirs(base / vendor))
+
+    # 官方启动器自带的 Java（26.x 需要的 Java 25 通常就在这里）
+    for runtime_root in _mojang_runtime_roots():
+        searches.extend(_iter_subdirs(runtime_root))
+
+    searches.extend(Path(path) for path in custom_paths)
 
     which_java = shutil.which("java")
     if which_java:
         root = Path(which_java).resolve().parent.parent
-        if root.is_dir() and root not in searches:
+        if root.is_dir():
             searches.append(root)
 
     for search in searches:
-        r = get_java_version(search)
-        if r is not None:
-            searched.append((search, r[0]))
+        result = get_java_version(search)
+        if result is not None:
+            searched.append((search, result[0]))
 
-    # 去重
-    jdk = list(set(searched))
-    return jdk
+    # 去重，同时保持顺序
+    return list(dict.fromkeys(searched))
 
 
 def find_java(required, *custom_paths):
@@ -100,19 +139,19 @@ def find_java(required, *custom_paths):
     candidates = []
 
     for java in javas:
-        if java[1] == required:
-            candidates.append((0, java[0]))
-        elif java[1] > required:
+        if java[1] >= required:
             candidates.append((java[1] - required, java[0]))
 
     candidates.sort()
 
-    if candidates:
-        best_match = candidates[0]
-    else:
-        raise RuntimeError("未找到可使用的 Java 实例")
+    if not candidates:
+        raise RuntimeError(
+            f"没有找到 Java {required} 或更高版本。请安装 Java {required}，"
+            f"或者把 JAVA_HOME 指向已有的 Java {required} 安装目录。")
 
-    return str(Path(best_match[1], "bin", "java.exe"))
+    best_match = candidates[0]
+    java_name = "java.exe" if os.name == "nt" else "java"
+    return str(Path(best_match[1], "bin", java_name))
 
 
 if __name__ == "__main__":
