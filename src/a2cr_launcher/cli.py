@@ -1,8 +1,11 @@
 from argparse import ArgumentParser
+from datetime import datetime
 from pathlib import Path
 from sys import exit
 
 from requests import RequestException
+from rich.console import Console
+from rich.table import Table
 
 from a2cr_launcher.core.paths import VERSIONS_DIR, LIBRARIES_DIR, ASSETS_DIR, INSTANCES_DIR
 from a2cr_launcher.core.platform_info import current_platform
@@ -14,6 +17,7 @@ from a2cr_launcher.meta.versions import get_version_meta
 
 
 def main():
+    console = Console()
     parser = ArgumentParser(description='a2cr Minecraft Launcher')
     subparsers = parser.add_subparsers(dest='command')
 
@@ -40,7 +44,20 @@ def main():
         except RequestException as err:
             print(f'[Network Error] 无法连接服务器,请检查网络或者代理设置: {err}')
             exit(1)
-        print(version_list)
+
+        version_table = Table(title="Minecraft Version List")
+        version_table.add_column("ID")
+        version_table.add_column("Type")
+        version_table.add_column("Update Time")
+        version_table.add_column("Release Time")
+        for version in version_list:
+            version_table.add_row(version.get('id'), version.get('type'),
+                                  datetime.fromisoformat(version["time"]).strftime("%Y-%m-%d %H:%M:%S") if version.get(
+                                      "time") else None,
+                                  datetime.fromisoformat(version["releaseTime"]).strftime(
+                                      "%Y-%m-%d %H:%M:%S") if version.get("releaseTime") else None)
+
+        console.print(version_table)
 
     elif args.command == 'install':
         print("下载版本", args.version)
