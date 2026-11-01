@@ -12,7 +12,7 @@ from a2cr_launcher.core.platform_info import current_platform
 from a2cr_launcher.launch.arguments import build_arguments
 from a2cr_launcher.launch.install import download_client, download_logging, download_assets, download_libraries
 from a2cr_launcher.launch.process import launch
-from a2cr_launcher.meta.manifest import get_version_list
+from a2cr_launcher.meta.manifest import get_version_manifest
 from a2cr_launcher.meta.versions import get_version_meta
 
 
@@ -40,7 +40,7 @@ def main():
 
     if args.command == 'version':
         try:
-            version_list = get_version_list(args.type, args.limit)
+            version_list = get_version_manifest(args.type, args.limit)
         except RequestException as err:
             print(f'[Network Error] 无法连接服务器,请检查网络或者代理设置: {err}')
             exit(1)
