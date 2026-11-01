@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -36,7 +37,7 @@ def get_java_version(path) -> tuple[int, str] | None:
         if f_content:
             for line in f_content:
                 if line.startswith('JAVA_VERSION='):
-                    return __analysis_version_code(line.split('=')[1].strip('"'))
+                    return __analysis_version_code(line.split('=', 1)[1].strip().strip('"'))
         return None
 
     def __get_version_by_executable_file(file):
@@ -66,6 +67,12 @@ def list_jdks(*custom_paths: Path):
                 *list(Path(str(os.getenv("ProgramFiles")), "Java").glob("*")),
                 *list(Path(str(os.getenv("ProgramFiles")), "Eclipse Adoptium").glob("*")),
                 *custom_paths]
+
+    which_java = shutil.which("java")
+    if which_java:
+        root = Path(which_java).resolve().parent.parent
+        if root.is_dir() and root not in searches:
+            searches.append(root)
 
     for search in searches:
         r = get_java_version(search)
