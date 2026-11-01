@@ -52,7 +52,7 @@ def get_java_version(path) -> tuple[int, str] | None:
         version = __get_version_by_release_file(Path(path, 'release'))
 
     # 根据可执行文件结果判断版本
-    if java_path.is_file():
+    if version == "" and java_path.is_file():
         version = __get_version_by_executable_file(java_path)
 
     return (int(version.split(".")[0]), version) if version else None
@@ -61,8 +61,11 @@ def get_java_version(path) -> tuple[int, str] | None:
 def list_jdks(*custom_paths: Path):
     searched: list[tuple[Path, int]] = []
 
-    searches = [Path(str(os.getenv("JAVA_HOME"))), *list(Path(str(os.getenv("ProgramFiles")), "Zulu").glob("*")),
-                Path(str(os.getenv("ProgramFiles")), "Java"), *custom_paths]
+    searches = [Path(str(os.getenv("JAVA_HOME"))),
+                *list(Path(str(os.getenv("ProgramFiles")), "Zulu").glob("*")),
+                *list(Path(str(os.getenv("ProgramFiles")), "Java").glob("*")),
+                *list(Path(str(os.getenv("ProgramFiles")), "Eclipse Adoptium").glob("*")),
+                *custom_paths]
 
     for search in searches:
         r = get_java_version(search)
@@ -97,7 +100,11 @@ def find_java(required, *custom_paths):
 
     candidates.sort()
 
-    best_match = candidates[0]
+    if candidates:
+        best_match = candidates[0]
+    else:
+        raise RuntimeError("未找到可使用的 Java 实例")
+
     return str(Path(best_match[1], "bin", "java.exe"))
 
 
