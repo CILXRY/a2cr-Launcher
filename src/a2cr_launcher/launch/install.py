@@ -7,7 +7,6 @@ from a2cr_launcher.meta.assets import build_asset_downloads, fetch_asset_index
 
 
 def download_client(meta, dest_dir):
-    # print(f"downloading {meta["downloads"]["client"]["url"]}")
     if download_file(meta["downloads"]["client"]["url"],
                      Path(dest_dir, meta['id'], f"{meta["downloads"]["client"]["url"].split("/")[-1]}"),
                      meta["downloads"]["client"]["sha1"]) != "failed":

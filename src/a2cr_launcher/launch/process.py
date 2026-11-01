@@ -1,3 +1,4 @@
+import logging
 import subprocess
 from pathlib import Path
 
@@ -9,5 +10,5 @@ def launch(cmd: list[str], game_dir: Path) -> int:
         text=True, encoding="utf-8", errors="replace",
     )
     for line in proc.stdout:
-        print(line, end="")
+        logging.info(line)
     return proc.wait()

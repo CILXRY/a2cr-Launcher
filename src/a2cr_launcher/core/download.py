@@ -1,6 +1,7 @@
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
+from logging import getLogger
 from pathlib import Path
 from time import sleep
 
@@ -10,6 +11,7 @@ MAX_RETRY = 3
 MAX_WORKERS = 8
 # 下载分片大小
 CHUNK_SIZE = 1024 * 1024
+log = getLogger(__name__)
 
 
 def _hash_file(file_path):
@@ -77,26 +79,25 @@ def download_file(url, dest, file_sha1=""):
     if file_path.is_file() and _hash_file(file_path) == file_sha1:
         return "skipped"
 
-    # print(f"准备下载 {file_path}")
     for _ in range(MAX_RETRY):
         try:
             _download_file_to_disk(url, temp_file_path)
         except requests.RequestException as e:
-            print(f"下载请求出错，重试。\n错误原因: {e}")
+            log.warning(f"下载请求出错，重试。\n错误原因: {e}")
             sleep(1)
             continue
         try:
             sha1 = _hash_file(temp_file_path)
         except FileNotFoundError as e:
-            print(f"文件 {file_path} 不存在，重新尝试")
+            log.warning(f"文件 {file_path} 不存在，重新尝试")
             continue
         if not file_sha1 or sha1 == file_sha1:
             temp_file_path.replace(file_path)
-            # print(f"下载 {file_path} 完成")
+            # log.info(f"下载 {file_path} 完成")
             return "success"
 
         else:
-            print(f"Hash 校验出错, 重试...")
+            log.info(f"Hash 校验出错, 重试...")
     return "failed"
 
 
@@ -121,14 +122,13 @@ def download(targets: list[tuple[str, Path, str, int]]):
                 failed_dest[dest] = "download failed"
             elif result == "skipped":
                 skipped += 1
-            # print(f"[{done}/{len(targets)}] {result:7s} {dest.name}")
-        print("==" * 20)
-        print(f"结束：成功 {success} 个，跳过 {skipped} 个，失败 {failed} 个。\n")
+        log.info("==" * 20)
+        log.info(f"结束：成功 {success} 个，跳过 {skipped} 个，失败 {failed} 个。\n")
         if success + skipped + failed != len(targets):
-            print(f"有任务丢失，请尝试重新下载。")
+            log.warning(f"有任务丢失，请尝试重新下载。")
             return False
         if failed_dest:
-            print(f"失败列表：\n", "\n".join(map(str, failed_dest.items())))
+            log.warning(f"失败列表：\n", "\n".join(map(str, failed_dest.items())))
             return False
     return True
 

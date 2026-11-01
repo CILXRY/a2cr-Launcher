@@ -1,3 +1,4 @@
+import logging
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
@@ -17,11 +18,12 @@ from a2cr_launcher.meta.versions import get_version_meta
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
     console = Console()
     parser = ArgumentParser(description='a2cr Minecraft Launcher')
     subparsers = parser.add_subparsers(dest='command')
 
-    # parser.add_argument('launch', action='store')
     version_parser = subparsers.add_parser('version')
     version_parser.add_argument('--limit', default=20, type=int)
     version_parser.add_argument('--type', action='store', default='release')
