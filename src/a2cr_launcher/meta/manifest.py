@@ -10,36 +10,52 @@ from a2cr_launcher.core.paths import VERSIONS_DIR
 MOJANG_VERSION_LIST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'
 
 
-def get_version_manifest(version_type: str, limit=0):
-    # 首先先从本地的文件读取
-    local_data_path = Path(VERSIONS_DIR, MOJANG_VERSION_LIST_URL.strip().split("/")[-1])
-    local_data, local_latest = None, None
-    try:
-        with open(local_data_path, 'r+') as f:
-            local_data = json.load(f)
-            local_latest = local_data.get("latest", "") if isinstance(local_data, dict) else None
-    except FileNotFoundError:
-        local_data = dict()
+def _cache_path() -> Path:
+    return Path(VERSIONS_DIR, MOJANG_VERSION_LIST_URL.strip().split("/")[-1])
 
-    # 这里的意图是在远程不可用的时候使用本地的
+
+def _read_cache(path: Path) -> dict:
+    """读取本地的版本列表缓存，文件不存在/损坏时当作没有缓存。"""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_cache(path: Path, data: dict) -> None:
+    """原子地写缓存，失败也不影响本次使用（比如目录只读）。"""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp = path.with_name(path.name + ".tmp")
+        with open(temp, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        temp.replace(path)
+    except OSError:
+        pass
+
+
+def get_version_manifest(version_type: str, limit=0):
+    # 首先从本地的文件读取，远程不可用时作为备选
+    local_data_path = _cache_path()
+    local_data = _read_cache(local_data_path)
+
     try:
         remote_data = http_get(MOJANG_VERSION_LIST_URL).json()
-    except requests.exceptions.RequestException:
+    except (requests.RequestException, ValueError):
         remote_data = None
 
     if isinstance(remote_data, dict):
-        # 如果远程是可用的
+        # 根据本地和远程的最新版本来判断缓存的时效性
+        if local_data.get("latest") != remote_data.get("latest"):
+            _write_cache(local_data_path, remote_data)
         data = remote_data.get("versions")
-        if local_latest != remote_data.get("latest"):
-            # 根据本地和远程的最新版本来判断文件的时效性
-            with open(local_data_path, 'w') as f:
-                json.dump(remote_data, f)
-    elif remote_data is None and local_data:
-        # 如果远程是不可用的
+    elif local_data.get("versions"):
+        # 网络不可用，退回到本地缓存
         data = local_data.get("versions")
     else:
-        # 远程和本地都不可用的情况
-        raise ValueError(f"Version not found")
+        raise requests.RequestException("无法获取 Minecraft 版本列表：网络不可用，本地也没有缓存")
 
     # 列版本列表
     versions_list = []
@@ -58,4 +74,4 @@ def find_version(version_id: str):
     for version in version_list:
         if version.get('id') == version_id:
             return version
-    raise ValueError(f"Version {version_id} not found")
+    raise ValueError(f"找不到版本 {version_id}，可以用 `al version --limit 50` 查看可用版本")
