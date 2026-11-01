@@ -7,7 +7,7 @@ from requests import RequestException
 from rich.console import Console
 from rich.table import Table
 
-from a2cr_launcher.core.paths import VERSIONS_DIR, LIBRARIES_DIR, ASSETS_DIR, INSTANCES_DIR
+from a2cr_launcher.core.paths import VERSIONS_DIR, LIBRARIES_DIR, ASSETS_DIR, INSTANCES_DIR, LOG_CONFIGS_DIR
 from a2cr_launcher.core.platform_info import current_platform
 from a2cr_launcher.launch.arguments import build_arguments
 from a2cr_launcher.launch.install import download_client, download_logging, download_assets, download_libraries
@@ -63,7 +63,7 @@ def main():
         print("下载版本", args.version)
         meta = get_version_meta(args.version)
         download_client(meta, VERSIONS_DIR)
-        download_logging(meta, ASSETS_DIR)
+        download_logging(meta, LOG_CONFIGS_DIR)
         download_assets(meta, ASSETS_DIR)
         download_libraries(meta, LIBRARIES_DIR)
         print("下载完成。")

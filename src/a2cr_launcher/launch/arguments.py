@@ -2,7 +2,7 @@ from pathlib import Path
 from string import Template
 
 from a2cr_launcher.auth.offline import offline_uuid
-from a2cr_launcher.core.paths import VERSIONS_DIR, ASSETS_DIR, LIBRARIES_DIR
+from a2cr_launcher.core.paths import VERSIONS_DIR, ASSETS_DIR, LIBRARIES_DIR, LOG_CONFIGS_DIR
 from a2cr_launcher.core.platform_info import current_platform
 from a2cr_launcher.java.discover import find_java
 from a2cr_launcher.launch.classpath import build_classpath
@@ -39,7 +39,7 @@ def _build_java_arguments(arg_raw, values, meta, dropped_args):
     # Log4J
     if meta.get('logging'):
         arguments.append(Template(meta['logging']['client'].get("argument")).substitute(
-            path=str(Path(ASSETS_DIR, "log_configs", meta['logging']['client']["file"]["id"]))))
+            path=str(Path(LOG_CONFIGS_DIR, meta['logging']['client']["file"]["id"]))))
 
     # Main Class
     arguments.append(meta.get("mainClass"))
