@@ -102,6 +102,14 @@ def download_file(url, dest, file_sha1=""):
 
 
 def download(targets: list[tuple[str, Path, str, int]]):
+    """
+    对外提供的多文件下载
+    Args:
+        targets list[tuple[str, Path, str, int]]: 列表，由任务元组组成的列表，任务元组：(URL, 目标路径, 文件 SHA-1, 文件大小)
+
+    Returns:
+        dict[int, int, int, dict[Path, str]]: 结果列表，成功、跳过、失败和 [下载失败的文件路径和原因] 组成的字典
+    """
     done = success = skipped = failed = 0
     failed_dest = {}
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -126,20 +134,11 @@ def download(targets: list[tuple[str, Path, str, int]]):
         log.info(f"结束：成功 {success} 个，跳过 {skipped} 个，失败 {failed} 个。\n")
         if success + skipped + failed != len(targets):
             log.warning(f"有任务丢失，请尝试重新下载。")
-            return False
         if failed_dest:
-            log.warning(f"失败列表：\n", "\n".join(map(str, failed_dest.items())))
-            return False
-    return True
+            log.warning(f"失败列表：\n%s", "\n".join(map(str, failed_dest.items())))
+    return {"success": success, "skipped": skipped, "failed": failed, "failed_list": failed_dest}
 
 
 if __name__ == '__main__':
-    from a2cr_launcher.meta.versions import get_version_meta
-    from a2cr_launcher.core.paths import ASSETS_DIR
-    from a2cr_launcher.meta.assets import build_asset_downloads, fetch_asset_index
-
-    asset_index: tuple = (get_version_meta('26.2').get('asset_index_url', ""),
-                          get_version_meta('26.2').get('asset_index_sha1', ""))
-    assets = fetch_asset_index(asset_index[0], Path(ASSETS_DIR, f'indexes/{asset_index[0].split("/")[-1]}'),
-                               asset_index[1])
-    download(build_asset_downloads(assets.get('objects', {}), ASSETS_DIR))
+    log.warning(download([("https://github.com/CILXRY/a2cr-Launcher/releases/download/v0.2.0-polish/a2Cr_Launcher.exe",
+                           Path(r"C:\Users\Rxx\Desktop\a2Cr_Launcher.exe"), "", 0)]))
