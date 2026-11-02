@@ -5,7 +5,7 @@ from a2cr_launcher.core.download import download
 
 
 def fetch_asset_index(meta, dest, sha1) -> dict:
-    if download([(meta, dest, sha1, -1)]) != "failed":
+    if download([(meta, dest, sha1, -1)]).get("failed") == 0:
         with open(Path(dest), 'r', encoding="utf-8") as f:
             a = json.load(f)
             return a

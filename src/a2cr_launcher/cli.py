@@ -6,9 +6,11 @@ from sys import exit
 
 from requests import RequestException
 from rich.console import Console
+from rich.logging import RichHandler
+from rich.progress import Progress, BarColumn, MofNCompleteColumn, TextColumn
 from rich.table import Table
 
-from a2cr_launcher.core.paths import VERSIONS_DIR, LIBRARIES_DIR, ASSETS_DIR, INSTANCES_DIR, LOG_CONFIGS_DIR
+from a2cr_launcher.core.paths import INSTANCES_DIR
 from a2cr_launcher.core.platform_info import current_platform
 from a2cr_launcher.launch.arguments import build_arguments
 from a2cr_launcher.launch.install import install
@@ -18,9 +20,10 @@ from a2cr_launcher.meta.versions import get_version_meta
 
 
 def main():
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-
     console = Console()
+    logging.basicConfig(level=logging.WARNING,
+                        handlers=[RichHandler(console=console, show_path=False, show_time=False)],
+                        format="%(message)s")
     parser = ArgumentParser(description='a2cr Minecraft Launcher')
     subparsers = parser.add_subparsers(dest='command')
 
@@ -64,8 +67,16 @@ def main():
     elif args.command == 'install':
         print("下载版本", args.version)
         meta = get_version_meta(args.version)
-        report = install(meta, "", VERSIONS_DIR, LIBRARIES_DIR, ASSETS_DIR, LOG_CONFIGS_DIR)
-        print(report)
+
+        with Progress(TextColumn("{task.description}"), BarColumn(), MofNCompleteColumn(), transient=True) as progress:
+            task = progress.add_task("准备中", total=None)  # total 第一次回调才知道
+
+            def show_progress(done, total, name, status):
+                progress.update(task, total=total, completed=done,
+                                description=f"{status:7s} {name[:40]}")
+
+            report = install(meta, on_progress=show_progress)
+        # print(report)
 
     elif args.command == 'launch':
         version = args.version

@@ -54,7 +54,7 @@ def install(meta,
 
     result = download(dl, on_progress)
     if result.get("failed"):
-        raise RuntimeError("有文件下载失败")
+        raise RuntimeError(f"{result['failed']} 个文件下载失败，例如: {list(result['failed_list'])[:3]}")
     return result
 
 

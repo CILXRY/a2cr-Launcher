@@ -28,25 +28,12 @@ def _hash_file(file_path):
         return digest.hexdigest()
 
 
-def _download_file(url, dest, file_sha1=""):
+def _download_file_to_disk(url, dest):
     """
-    对外所用的文件下载, 集成了 文件哈希,错误重试,创建文件 的整体函数
-    Args:
-        url (str): 文件地址
-        dest (Path): 文件保存位置
-        file_sha1 (str): 文件哈希
-
+    单次请求文件，将文件下载到本地函数
     Returns:
-        str: 结果："success", "failed", "skipped" 其中之一
-
+        None
     """
-
-    def _download_file_to_disk():
-        """
-        单次请求文件，将文件下载到本地函数
-        Returns:
-            None
-        """
 
     # 建立请求
     req = requests.get(url, stream=True, timeout=10)
@@ -64,6 +51,20 @@ def _download_file(url, dest, file_sha1=""):
             f.write(chunk)
             downloaded += len(chunk)
 
+
+def _download_file(url, dest, file_sha1=""):
+    """
+    对外所用的文件下载, 集成了 文件哈希,错误重试,创建文件 的整体函数
+    Args:
+        url (str): 文件地址
+        dest (Path): 文件保存位置
+        file_sha1 (str): 文件哈希
+
+    Returns:
+        str: 结果："success", "failed", "skipped" 其中之一
+
+    """
+
     # 文件路径和默认哈希
     file_path = Path(dest)
     temp_file_path = file_path.with_suffix(file_path.suffix + ".part")
@@ -77,7 +78,7 @@ def _download_file(url, dest, file_sha1=""):
 
     for _ in range(MAX_RETRY):
         try:
-            _download_file_to_disk()
+            _download_file_to_disk(url, temp_file_path)
         except requests.RequestException as e:
             log.warning(f"下载请求出错，重试。\n错误原因: {e}")
             sleep(1)
@@ -126,8 +127,8 @@ def download(targets: list[tuple[str, Path, str, int]], on_progress=None):
                 failed_dest[dest] = "download failed"
             elif result == "skipped":
                 skipped += 1
-        log.info("==" * 20)
-        log.info(f"结束：成功 {success} 个，跳过 {skipped} 个，失败 {failed} 个。\n")
+            if on_progress:
+                on_progress(done, len(targets), dest.name, result)
         if success + skipped + failed != len(targets):
             log.warning(f"有任务丢失，请尝试重新下载。")
         if failed_dest:
