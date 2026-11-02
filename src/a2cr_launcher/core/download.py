@@ -28,16 +28,26 @@ def _hash_file(file_path):
         return digest.hexdigest()
 
 
-def _download_file_to_disk(url, dest):
+def _download_file(url, dest, file_sha1=""):
     """
-    单次请求文件，将文件下载到本地函数
+    对外所用的文件下载, 集成了 文件哈希,错误重试,创建文件 的整体函数
     Args:
-        url (str): 文件 URL
-        dest (Path): 文件路径
+        url (str): 文件地址
+        dest (Path): 文件保存位置
+        file_sha1 (str): 文件哈希
 
     Returns:
-        None
+        str: 结果："success", "failed", "skipped" 其中之一
+
     """
+
+    def _download_file_to_disk():
+        """
+        单次请求文件，将文件下载到本地函数
+        Returns:
+            None
+        """
+
     # 建立请求
     req = requests.get(url, stream=True, timeout=10)
     # 进度初始化
@@ -54,20 +64,6 @@ def _download_file_to_disk(url, dest):
             f.write(chunk)
             downloaded += len(chunk)
 
-
-def download_file(url, dest, file_sha1=""):
-    """
-    对外所用的文件下载, 集成了 文件哈希,错误重试,创建文件 的整体函数
-    Args:
-        url (str): 文件地址
-        dest (Path): 文件保存位置
-        file_sha1 (str): 文件哈希
-
-    Returns:
-        str: 结果："success", "failed", "skipped" 其中之一
-
-    """
-
     # 文件路径和默认哈希
     file_path = Path(dest)
     temp_file_path = file_path.with_suffix(file_path.suffix + ".part")
@@ -81,19 +77,18 @@ def download_file(url, dest, file_sha1=""):
 
     for _ in range(MAX_RETRY):
         try:
-            _download_file_to_disk(url, temp_file_path)
+            _download_file_to_disk()
         except requests.RequestException as e:
             log.warning(f"下载请求出错，重试。\n错误原因: {e}")
             sleep(1)
             continue
         try:
             sha1 = _hash_file(temp_file_path)
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             log.warning(f"文件 {file_path} 不存在，重新尝试")
             continue
         if not file_sha1 or sha1 == file_sha1:
             temp_file_path.replace(file_path)
-            # log.info(f"下载 {file_path} 完成")
             return "success"
 
         else:
@@ -101,19 +96,20 @@ def download_file(url, dest, file_sha1=""):
     return "failed"
 
 
-def download(targets: list[tuple[str, Path, str, int]]):
+def download(targets: list[tuple[str, Path, str, int]], on_progress=None):
     """
-    对外提供的多文件下载
+    对外提供的文件下载
     Args:
         targets list[tuple[str, Path, str, int]]: 列表，由任务元组组成的列表，任务元组：(URL, 目标路径, 文件 SHA-1, 文件大小)
 
     Returns:
         dict[int, int, int, dict[Path, str]]: 结果列表，成功、跳过、失败和 [下载失败的文件路径和原因] 组成的字典
     """
+
     done = success = skipped = failed = 0
     failed_dest = {}
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(download_file, url, dest, sha1): dest for url, dest, sha1, _ in targets}
+        futures = {executor.submit(_download_file, url, dest, sha1): dest for url, dest, sha1, _ in targets}
         for f in as_completed(futures):
             dest = futures[f]
             done += 1

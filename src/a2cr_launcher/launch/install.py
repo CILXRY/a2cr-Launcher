@@ -1,43 +1,63 @@
 from pathlib import Path
 
-from a2cr_launcher.core.download import download_file, download
+from a2cr_launcher.core.download import download
+from a2cr_launcher.core.paths import VERSIONS_DIR, ASSETS_DIR, LOG_CONFIGS_DIR, LIBRARIES_DIR
 from a2cr_launcher.core.platform_info import current_platform
 from a2cr_launcher.launch.libraries import build_library_downloads
 from a2cr_launcher.meta.assets import build_asset_downloads, fetch_asset_index
 
 
-def download_client(meta, dest_dir):
-    if download_file(meta["downloads"]["client"]["url"],
-                     Path(dest_dir, meta['id'], f"{meta["downloads"]["client"]["url"].split("/")[-1]}"),
-                     meta["downloads"]["client"]["sha1"]) != "failed":
-        return True
-    return False
+def install(meta,
+            on_progress=None,
+            versions_dir=VERSIONS_DIR,
+            libraries_dir=LIBRARIES_DIR,
+            assets_dir=ASSETS_DIR,
+            log_configs_dir=LOG_CONFIGS_DIR):
+    """
+
+    Args:
+        on_progress:
+        meta: 版本元文件
+        versions_dir (Path): 版本文件夹
+        libraries_dir (Path): 库文件夹
+        assets_dir (Path): 资源文件夹
+        log_configs_dir (Path): Logging 配置文件夹
+
+    Returns:
+
+    """
+    dl = []
+
+    # client
+    client_file = meta["downloads"]["client"]
+    client = (client_file["url"], Path(versions_dir, meta['id'], f"{client_file["url"].split("/")[-1]}"),
+              client_file["sha1"], client_file["size"])
+    dl.append(client)
+
+    # logging
+    logging_file = meta["logging"]["client"]["file"]
+    logging = (logging_file["url"], Path(log_configs_dir, logging_file["id"]),
+               logging_file["sha1"], logging_file["size"])
+
+    dl.append(logging)
+
+    # assets
+    assets_files = fetch_asset_index(meta["assetIndex"].get("url", ""),
+                                     Path(assets_dir, f'indexes/{meta["assetIndex"].get("url", "").split("/")[-1]}'),
+                                     meta['assetIndex'].get('sha1', ""))
+    assets = build_asset_downloads(assets_files.get('objects', {}), assets_dir)
+    dl.extend(assets)
+
+    # libraries
+    libs = build_library_downloads(meta, libraries_dir, current_platform()[0], current_platform()[1])
+    dl.extend(libs)
+
+    result = download(dl, on_progress)
+    if result.get("failed"):
+        raise RuntimeError("有文件下载失败")
+    return result
 
 
-def download_logging(meta, dest_dir):
-    try:
-        target_file: dict = meta["logging"]["client"]["file"]
-    except KeyError:
-        target_file = {}
-    if target_file:
-        return download_file(target_file["url"], Path(dest_dir, target_file["id"]),
-                             target_file["sha1"]) != "failed"
-    return True
-
-
-def download_assets(meta, dest_dir):
-    asset_index: tuple = (meta["assetIndex"].get("url", ""),
-                          meta['assetIndex'].get('sha1', ""))
-    assets = fetch_asset_index(asset_index[0], Path(dest_dir, f'indexes/{asset_index[0].split("/")[-1]}'),
-                               asset_index[1])
-
-    if download(build_asset_downloads(assets.get('objects', {}), dest_dir)):
-        return True
-    return False
-
-
-def download_libraries(meta, dest_dir):
-    libs = build_library_downloads(meta, dest_dir, current_platform()[0], current_platform()[1])
-    if download(libs):
-        return True
-    return False
+if __name__ == "__main__":
+    # print(build_downloads(get_version_meta("26.2")))
+    pass

@@ -1,11 +1,11 @@
 import json
 from pathlib import Path
 
-from a2cr_launcher.core.download import download_file
+from a2cr_launcher.core.download import download
 
 
 def fetch_asset_index(meta, dest, sha1) -> dict:
-    if download_file(meta, dest, sha1) != "failed":
+    if download([(meta, dest, sha1, -1)]) != "failed":
         with open(Path(dest), 'r', encoding="utf-8") as f:
             a = json.load(f)
             return a
