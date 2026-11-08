@@ -201,7 +201,7 @@ def _build_progress(total_bytes, total_files, show_progress):
     return Progress(*columns, disable=not show_progress), total_files
 
 
-def download(targets, *, show_progress=True, description="下载文件"):
+def download(targets, *, show_progress=True, description="下载文件", on_progress=None):
     """
     批量下载。
 
@@ -209,6 +209,8 @@ def download(targets, *, show_progress=True, description="下载文件"):
         targets (list[tuple[str, Path, str, int]]): (下载 URL, 保存路径, sha1, 大小)
         show_progress (bool): 是否显示进度条
         description (str): 进度条标题
+        on_progress (callable): 每完成一个文件回调一次 on_progress(已完成数, 总数, 文件名, 状态)；
+            状态为 "success" / "skipped" / "failed"。给 GUI 用，传了它就不要再往控制台打进度。
 
     Returns:
         bool: 是否全部成功
@@ -224,6 +226,7 @@ def download(targets, *, show_progress=True, description="下载文件"):
     pass_failures: dict[Path, str] = {}
     pending = list(targets)
     aborted = False
+    finished: set[Path] = set()
 
     with progress:
         task = progress.add_task(description, total=total, visible=show_progress)
@@ -252,6 +255,11 @@ def download(targets, *, show_progress=True, description="下载文件"):
                         progress.advance(task, dest.stat().st_size if total_bytes else 1)
                     else:
                         pass_failures[dest] = reason or _take_error(dest)
+
+                    if result in ("success", "skipped"):
+                        finished.add(dest)
+                    if on_progress is not None:
+                        on_progress(len(finished), len(targets), dest.name, result)
 
                     # 一个都没成功的时候不硬撑：否则断网时会把几千个文件挨个重试一遍
                     if success + skipped == 0 and len(pass_failures) >= ABORT_AFTER_FAILURES:
