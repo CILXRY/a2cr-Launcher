@@ -58,12 +58,30 @@ def _safe_console_text(text: str) -> str:
         return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
-def launch(cmd: list[str], game_dir: Path) -> int:
+def launch(cmd: list[str], game_dir: Path, on_log=None) -> int:
+    """
+    启动游戏进程并把输出转发出去。
+
+    Args:
+        cmd (list[str]): 完整命令行
+        game_dir (Path): 工作目录
+        on_log (callable | None): 每读到一行输出就回调一次；不传则打印到控制台
+
+    Returns:
+        int: 游戏进程退出码
+    """
     proc = subprocess.Popen(
         cmd, cwd=game_dir,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, encoding="utf-8", errors="replace",
     )
+
+    def emit(text: str) -> None:
+        if on_log is not None:
+            on_log(text)
+        else:
+            print(_safe_console_text(text), flush=True)
+
     if proc.stdout is None:
         return proc.wait()
 
@@ -71,7 +89,7 @@ def launch(cmd: list[str], game_dir: Path) -> int:
     for raw_line in proc.stdout:
         line = raw_line.rstrip("\r\n")
         if not buffer and not line.lstrip().startswith("<log4j:Event"):
-            print(_safe_console_text(line), flush=True)
+            emit(line)
             continue
 
         buffer.append(line)
@@ -81,8 +99,8 @@ def launch(cmd: list[str], game_dir: Path) -> int:
         block = "\n".join(buffer)
         buffer.clear()
         formatted = _format_event(block)
-        print(_safe_console_text(formatted if formatted is not None else block), flush=True)
+        emit(formatted if formatted is not None else block)
 
     if buffer:
-        print(_safe_console_text("\n".join(buffer)), flush=True)
+        emit("\n".join(buffer))
     return proc.wait()

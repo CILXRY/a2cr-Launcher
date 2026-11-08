@@ -36,13 +36,23 @@ def install(meta: dict, on_progress: Callable | None = None) -> bool:
 
 一次性装齐：资源索引 → client.jar → logging 配置 → libraries → assets。失败抛 `RuntimeError`。
 
+### 游戏启动
+
+```python
+# launch/process.py
+def launch(cmd: list[str], game_dir: Path, on_log=None) -> int:
+```
+
+- `on_log(text)`：每读到一行游戏输出就回调一次；不传则打印到控制台
+- 返回游戏进程的退出码
+
 ### 给界面的入口
 
 ```python
 # services.py
 def list_installed() -> list[str]              # 返回版本号，不是路径
 def install_version(version_id: str, on_progress=None) -> bool
-def launch_version(version_id: str, max_memory="4G", name="a2Cr") -> int
+def launch_version(version_id: str, max_memory="4G", name="a2Cr", on_log=None) -> int
 ```
 
 `services.py` 是 UI 唯一允许依赖的模块。UI 不许直接 import `core/`、`meta/`、`launch/`。

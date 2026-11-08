@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [elegant]
+  pull_request:
+    branches: [elegant]
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: 安装依赖
+        run: uv sync
+
+      - name: 离线冒烟测试
+        run: uv run python -m tests.smoke
+
+      - name: CLI 能起来
+        run: uv run al --help

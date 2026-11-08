@@ -23,9 +23,13 @@ def install_version(version_id: str, on_progress=None) -> bool:
     return install(meta, on_progress=on_progress)
 
 
-def launch_version(version_id: str, max_memory: str = "4G", name: str = "a2Cr") -> int:
-    """启动一个版本，返回游戏进程的退出码（会阻塞到游戏退出）。"""
+def launch_version(version_id: str, max_memory: str = "4G", name: str = "a2Cr", on_log=None) -> int:
+    """启动一个版本，返回游戏进程的退出码（会阻塞到游戏退出）。
+
+    on_log(text) 会在每读到一行游戏输出时被调用；不传则打印到控制台。
+    """
     meta = get_version_meta(version_id)
     game_dir = Path(INSTANCES_DIR, version_id)
     game_dir.mkdir(parents=True, exist_ok=True)
-    return launch(build_arguments(meta, game_dir, name=name, max_memory=max_memory), game_dir)
+    return launch(build_arguments(meta, game_dir, name=name, max_memory=max_memory), game_dir,
+                  on_log=on_log)
