@@ -1,11 +1,18 @@
+import asyncio
+import time
+
 import flet as ft
 
 from a2cr_launcher.services import list_installed, launch_version
 
 
 def main(page: ft.Page):
-    instances: list[ft.Row] = list()
+    # region 初始定义
     page.title = "a2cr Minecraft Launcher"
+    # endregion
+
+
+    instances: list[ft.Row] = list()
     versions = list(list_installed())
 
     for version in versions:
@@ -37,5 +44,5 @@ def main(page: ft.Page):
     page.add(tabs)
 
 
-if __name__ == "__main__":
+def run():
     ft.run(main)

@@ -16,7 +16,17 @@ dependencies = [
 
 [project.scripts]
 al = "a2cr_launcher:main"
+al-gui = "a2cr_launcher.ui.gui:run"
 
 [build-system]
 requires = ["uv_build>=0.12.16,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.flet]
+org = "cilxry"
+product = "a2cr-launcher"
+company = "cilxry"
+copyright = "Copyright (C) 2026 by cilxry"
+
+[tool.flet.app]
+path = "src/a2cr_launcher/ui"
