@@ -1,0 +1,19 @@
+name: Bug 反馈
+description: a2Cr Launcher 的 Bug 反馈模板
+title: '[Bug]: '
+body:
+  - type: textarea
+    attributes:
+      label: 描述
+      description: 一个清晰明了的问题描述
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 简单的复现情景
+      description: 提供如何复现这个问题
+  - type: markdown
+    attributes:
+      value: >-
+        This template was generated with [Issue Forms
+        Creator](https://issue-forms-creator.netlify.app)
