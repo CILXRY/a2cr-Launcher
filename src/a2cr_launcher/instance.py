@@ -6,10 +6,11 @@
 
 import json
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 
-from a2cr_launcher.core.paths import INSTANCES_DIR
+from a2cr_launcher.core.paths import INSTANCES_DIR, TRASH_DIR
 
 META_FILE = "instance.json"
 
@@ -61,6 +62,8 @@ def create(name: str, mc_version: str, version_id: str, loader: dict | None = No
         "loader": loader or {"type": "vanilla", "version": ""},
         "source": source or {},
         "created_at": datetime.now().isoformat(timespec="seconds"),
+        # 记录整合包托管了哪些文件；更新整合包时只清理这些文件，不碰玩家自己放进去的东西
+        "managed_files": [],
     }
     with open(Path(directory, META_FILE), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
@@ -79,6 +82,9 @@ def load(name: str) -> dict | None:
     if not isinstance(meta, dict):
         return None
     meta.setdefault("folder", name)
+    meta.setdefault("loader", {"type": "vanilla", "version": ""})
+    meta.setdefault("source", {})
+    meta.setdefault("managed_files", [])
     return meta
 
 
@@ -123,3 +129,26 @@ def save(meta: dict) -> None:
     with open(Path(directory, META_FILE), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
+
+def trash(folder: str) -> Path:
+    """把实例目录移到启动器回收站，而不是直接删除。
+
+    返回移动后的路径。这样即使误点删除，也能在 ``~/.a2CrLauncher/.trash``
+    里把整个实例目录拖回去。
+    """
+    directory = instance_dir(folder)
+    if not directory.is_dir():
+        raise FileNotFoundError(f"实例目录不存在：{directory}")
+    # 只允许操作 instances 下的一级目录，避免 ../ 之类的路径逃逸
+    if directory.resolve().parent != Path(INSTANCES_DIR).resolve():
+        raise ValueError("实例目录不在 instances 下，拒绝移动")
+
+    TRASH_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    target = Path(TRASH_DIR, f"{folder}-{stamp}")
+    index = 2
+    while target.exists():
+        target = Path(TRASH_DIR, f"{folder}-{stamp}-{index}")
+        index += 1
+    shutil.move(str(directory), str(target))
+    return target

@@ -74,6 +74,7 @@ FEATURE_CASES = [
 IMPORT_MODULES = [
     "a2cr_launcher.cli",
     "a2cr_launcher.services",
+    "a2cr_launcher.settings",
     "a2cr_launcher.core.download",
     "a2cr_launcher.core.http_util",
     "a2cr_launcher.core.paths",
@@ -87,8 +88,19 @@ IMPORT_MODULES = [
     "a2cr_launcher.meta.assets",
     "a2cr_launcher.meta.manifest",
     "a2cr_launcher.meta.versions",
+    "a2cr_launcher.modpack",
     "a2cr_launcher.java.discover",
     "a2cr_launcher.ui.gui",
+    "a2cr_launcher.ui.theme",
+    "a2cr_launcher.ui.components",
+    "a2cr_launcher.ui.state",
+    "a2cr_launcher.ui.dialogs",
+    "a2cr_launcher.ui.utils",
+    "a2cr_launcher.ui.views.home",
+    "a2cr_launcher.ui.views.instances",
+    "a2cr_launcher.ui.views.logs",
+    "a2cr_launcher.ui.views.settings",
+    "a2cr_launcher.ui.views.versions",
 ]
 
 
@@ -117,8 +129,84 @@ def test_services():
     assert all(isinstance(v, str) for v in installed)
 
 
+def test_settings_normalize():
+    """坏掉的设置要回退到默认值，不能把非法值塞进启动参数。"""
+    from a2cr_launcher.settings import DEFAULT_SETTINGS, _normalize
+
+    assert _normalize({"max_memory": "4G"})["max_memory"] == "4G"
+    assert _normalize({"max_memory": "4096M"})["max_memory"] == "4096M"
+    assert _normalize({"max_memory": "abc"})["max_memory"] == DEFAULT_SETTINGS["max_memory"]
+    assert _normalize({"max_memory": "0G"})["max_memory"] == DEFAULT_SETTINGS["max_memory"]
+    assert _normalize({"theme": "neon"})["theme"] == DEFAULT_SETTINGS["theme"]
+    assert _normalize({"player_name": "  "})["player_name"] == DEFAULT_SETTINGS["player_name"]
+    assert _normalize({"window_width": 1})["window_width"] >= 960
+
+
+def test_ui_utils():
+    """界面用的格式化函数不能因为空值/坏时间抛异常。"""
+    from a2cr_launcher.ui.utils import (format_date, format_duration, format_relative,
+                                        format_size, memory_gb, shorten_path)
+
+    assert format_date(None) == "—"
+    assert format_date("2026-11-14T10:00:00Z") == "2026-11-14"
+    assert format_duration(0) == "00:00"
+    assert format_duration(3661) == "1:01:01"
+    assert format_relative(None) == "还没玩过"
+    assert format_size(0) == "0 B"
+    assert memory_gb("8G") == 8
+    assert memory_gb("4096M") == 4
+    assert memory_gb("bad") == 4
+    assert "..." in shorten_path("C:/a/very/long/path/that/should/be/shortened", 20)
+
+
+def test_import_detect_missing():
+    """不存在的整合包要得到一个明确的 FileNotFoundError，而不是别的异常。"""
+    from pathlib import Path
+
+    from a2cr_launcher.modpack import detect
+
+    try:
+        detect(Path("definitely-not-a-pack.mrpack"))
+    except FileNotFoundError:
+        pass
+    else:
+        raise AssertionError("detect() 应该对不存在的文件抛出 FileNotFoundError")
+
+
+def test_managed_entries():
+    """整合包托管文件清单要过滤掉 ../ 逃逸路径。"""
+    from pathlib import Path
+
+    from a2cr_launcher.modpack import _managed_entries
+
+    managed = _managed_entries(Path("."), [
+        {"path": "mods/example.jar", "sha1": "abc"},
+        {"path": "../outside.jar", "sha1": "def"},
+        {"path": "", "sha1": "empty"},
+    ])
+    assert managed == [{"path": "mods/example.jar", "sha1": "abc"}]
+
+
+def test_download_cancel_before_start():
+    """取消检查要在发请求之前生效，不能先写文件再退出。"""
+    from pathlib import Path
+
+    from a2cr_launcher.core.download import DownloadCancelled, download
+
+    try:
+        download([("http://127.0.0.1:1/never", Path("never-downloaded.bin"), "", 0)],
+                 cancel=lambda: True)
+    except DownloadCancelled:
+        pass
+    else:
+        raise AssertionError("预置 cancel 时 download 应该抛 DownloadCancelled")
+    assert not Path("never-downloaded.bin").exists()
+
+
 def main() -> None:
-    tests = [test_rules, test_feature_rule_list, test_imports, test_services]
+    tests = [test_rules, test_feature_rule_list, test_imports, test_services,
+             test_settings_normalize, test_ui_utils, test_import_detect_missing,
+             test_managed_entries, test_download_cancel_before_start]
     for test in tests:
         test()
         print(f"ok  {test.__name__}")

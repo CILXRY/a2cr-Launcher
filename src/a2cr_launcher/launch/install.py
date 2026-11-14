@@ -49,7 +49,7 @@ def download_libraries(meta, dest_dir):
     return download(libs, description="运行库")
 
 
-def install(meta, on_progress=None) -> bool:
+def install(meta, on_progress=None, cancel=None) -> bool:
     """
     一次性装齐某个版本所需的全部文件（资源索引 / client / logging / libraries / assets）。
 
@@ -57,12 +57,14 @@ def install(meta, on_progress=None) -> bool:
         meta (dict): 版本 meta
         on_progress (callable | None): on_progress(已完成数, 总数, 文件名, 状态)，给 GUI 用。
             传了这个就不再往控制台打进度条。
+        cancel (callable | None): 返回 True 时中止下载，给 GUI 的“取消”按钮用。
 
     Returns:
         bool: 全部成功返回 True
 
     Raises:
         RuntimeError: 有文件下载失败
+        DownloadCancelled: 用户取消
     """
     version = meta["id"]
     ensure_natives_dirs(version)
@@ -71,7 +73,7 @@ def install(meta, on_progress=None) -> bool:
     index = meta["assetIndex"]
     index_path = Path(ASSETS_DIR, "indexes", index["url"].split("/")[-1])
     if download_file(index["url"], index_path, index.get("sha1", ""),
-                     index.get("size", 0), verbose=False) == "failed":
+                     index.get("size", 0), verbose=False, cancel=cancel) == "failed":
         raise RuntimeError(f"资源索引下载失败: {index['url']}")
     with open(index_path, "r", encoding="utf-8") as f:
         index_data = json.load(f)
@@ -95,7 +97,8 @@ def install(meta, on_progress=None) -> bool:
     ok = download(targets,
                   show_progress=on_progress is None,
                   description=f"安装 {version}",
-                  on_progress=on_progress)
+                  on_progress=on_progress,
+                  cancel=cancel)
     if not ok:
         raise RuntimeError(f"{version} 有文件下载失败，重新运行即可继续补下")
     return True

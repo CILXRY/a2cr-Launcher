@@ -39,6 +39,14 @@ _error_lock = threading.Lock()
 _last_errors: dict[str, str] = {}
 
 
+class DownloadCancelled(RuntimeError):
+    """用户主动取消下载时抛出。
+
+    ``download`` 默认没有取消回调，所以 CLI 永远不会看到这个异常；只有 GUI 传入
+    ``cancel`` 之后才可能触发。保留已经下载的 ``.part`` 文件，下次可以续传。
+    """
+
+
 def get_session() -> requests.Session:
     """每个线程复用一个 Session，复用连接，避免为每个文件重新做 TLS 握手。"""
     session: requests.Session | None = getattr(_thread_local, "session", None)
@@ -78,7 +86,7 @@ def _hash_file(file_path) -> str:
         return digest.hexdigest()
 
 
-def _download_file_to_disk(url, part_path, expected_size=0):
+def _download_file_to_disk(url, part_path, expected_size=0, cancel=None):
     """
     把 url 下载到 part_path。如果 part_path 已有内容，会尝试用 Range 续传。
 
@@ -86,6 +94,7 @@ def _download_file_to_disk(url, part_path, expected_size=0):
         url (str): 文件 URL
         part_path (Path): 分片文件路径
         expected_size (int): 期望的文件大小，大于 0 时用来丢弃异常的旧分片
+        cancel (callable | None): 返回 True 时中止下载
 
     Returns:
         None
@@ -111,13 +120,16 @@ def _download_file_to_disk(url, part_path, expected_size=0):
         mode = "ab" if downloaded and response.status_code == 206 else "wb"
         with open(part_path, mode) as f:
             for chunk in response.iter_content(CHUNK_SIZE):
+                if cancel is not None and cancel():
+                    # 保留已经写入的分片，下次导入/安装还能续传
+                    raise DownloadCancelled("下载已取消")
                 if chunk:
                     f.write(chunk)
     finally:
         response.close()
 
 
-def download_file(url, dest, file_sha1="", file_size=0, *, verbose=True):
+def download_file(url, dest, file_sha1="", file_size=0, *, verbose=True, cancel=None):
     """
     对外所用的文件下载, 集成了 文件哈希,错误重试,创建文件 的整体函数
     Args:
@@ -126,16 +138,22 @@ def download_file(url, dest, file_sha1="", file_size=0, *, verbose=True):
         file_sha1 (str): 文件哈希，为空表示不校验
         file_size (int): 文件大小，大于 0 时用于续传校验
         verbose (bool): 是否打印每次重试的原因
+        cancel (callable | None): 返回 True 时中止下载
 
     Returns:
         str: 结果："success", "failed", "skipped" 其中之一
 
+    Raises:
+        DownloadCancelled: 用户取消下载。已经写入的 .part 会保留，方便续传。
     """
     file_path = Path(dest)
     part_path = file_path.with_name(file_path.name + ".part")
 
     # 创建目标文件夹
     file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if cancel is not None and cancel():
+        raise DownloadCancelled("下载已取消")
 
     # 检测有没有原有文件（强制哈希校验）
     if file_path.is_file():
@@ -147,7 +165,7 @@ def download_file(url, dest, file_sha1="", file_size=0, *, verbose=True):
     error = "未知错误"
     for attempt in range(MAX_RETRY):
         try:
-            _download_file_to_disk(url, part_path, file_size)
+            _download_file_to_disk(url, part_path, file_size, cancel=cancel)
             sha1 = _hash_file(part_path)
             if not file_sha1 or sha1 == file_sha1:
                 part_path.replace(file_path)
@@ -156,6 +174,9 @@ def download_file(url, dest, file_sha1="", file_size=0, *, verbose=True):
                 return "success"
             part_path.unlink(missing_ok=True)
             error = f"SHA-1 校验失败（得到 {sha1}，期望 {file_sha1}）"
+        except DownloadCancelled:
+            # 取消不是失败，不要进入重试退避，否则用户会感觉点了没反应
+            raise
         except requests.RequestException as exc:
             error = f"{type(exc).__name__}: {exc}"
         except FileNotFoundError:
@@ -201,7 +222,7 @@ def _build_progress(total_bytes, total_files, show_progress):
     return Progress(*columns, disable=not show_progress), total_files
 
 
-def download(targets, *, show_progress=True, description="下载文件", on_progress=None):
+def download(targets, *, show_progress=True, description="下载文件", on_progress=None, cancel=None):
     """
     批量下载。
 
@@ -211,13 +232,20 @@ def download(targets, *, show_progress=True, description="下载文件", on_prog
         description (str): 进度条标题
         on_progress (callable): 每完成一个文件回调一次 on_progress(已完成数, 总数, 文件名, 状态)；
             状态为 "success" / "skipped" / "failed"。给 GUI 用，传了它就不要再往控制台打进度。
+        cancel (callable | None): 返回 True 时中止整批下载。已经下载的文件会保留，
+            重新运行同样的下载会跳过它们。
 
     Returns:
         bool: 是否全部成功
+
+    Raises:
+        DownloadCancelled: ``cancel`` 返回 True 时。
     """
     targets = _unique_targets(targets)
     if not targets:
         return True
+    if cancel is not None and cancel():
+        raise DownloadCancelled("下载已取消")
 
     total_bytes = sum(target[3] for target in targets)
     progress, total = _build_progress(total_bytes, len(targets), show_progress)
@@ -226,6 +254,7 @@ def download(targets, *, show_progress=True, description="下载文件", on_prog
     pass_failures: dict[Path, str] = {}
     pending = list(targets)
     aborted = False
+    cancelled = False
     finished: set[Path] = set()
 
     with progress:
@@ -233,10 +262,13 @@ def download(targets, *, show_progress=True, description="下载文件", on_prog
         for pass_index in range(FAILED_RETRY_PASSES + 1):
             if not pending:
                 break
+            if cancel is not None and cancel():
+                cancelled = True
+                break
             pass_failures = {}
             with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
                 futures = {
-                    executor.submit(download_file, url, dest, sha1, size, verbose=False): dest
+                    executor.submit(download_file, url, dest, sha1, size, verbose=False, cancel=cancel): dest
                     for url, dest, sha1, size in pending
                 }
                 for future in as_completed(futures):
@@ -244,6 +276,11 @@ def download(targets, *, show_progress=True, description="下载文件", on_prog
                     try:
                         result = future.result()
                         reason = ""
+                    except DownloadCancelled:
+                        # 取消时不再等剩下的文件；已经执行的下载会在 chunk 循环里尽快退出
+                        cancelled = True
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
                     except Exception as exc:  # 线程里未预料的异常也不能让整个安装崩掉
                         result, reason = "failed", f"{type(exc).__name__}: {exc}"
 
@@ -266,9 +303,11 @@ def download(targets, *, show_progress=True, description="下载文件", on_prog
                         aborted = True
                         executor.shutdown(wait=False, cancel_futures=True)
                         break
-                if aborted:
+                if aborted or cancelled:
                     break
 
+            if cancelled:
+                break
             pending = [(url, dest, sha1, size) for url, dest, sha1, size in targets if dest in pass_failures]
             if not pending:
                 break
@@ -276,6 +315,10 @@ def download(targets, *, show_progress=True, description="下载文件", on_prog
                 sleep(1.5 * (pass_index + 1))
 
         progress.update(task, description=f"{description}（结束）")
+
+    if cancelled:
+        print(f"{description}已取消。已下载的文件会保留，下次可以继续。")
+        raise DownloadCancelled("下载已取消")
 
     failed = pass_failures if (pending or aborted) else {}
     print("==" * 20)

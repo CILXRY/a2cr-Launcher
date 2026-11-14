@@ -36,10 +36,36 @@ def _write_cache(path: Path, data: dict) -> None:
         pass
 
 
-def get_version_manifest(version_type: str, limit=0):
+def _filter_versions(data, version_type: str, limit: int) -> list:
+    """从完整版本列表里筛出需要的类型，并截断到 limit。"""
+    versions_list = []
+    if isinstance(data, list):
+        for version in data:
+            if version_type == "all" or version.get('type') == version_type:
+                versions_list.append(version)
+        if limit:
+            return versions_list[:limit]
+    return versions_list
+
+
+def get_version_manifest(version_type: str, limit=0, prefer_cache: bool = False):
+    """获取版本列表。
+
+    Args:
+        version_type: release / snapshot / all
+        limit: 最多返回多少条，0 表示不限制
+        prefer_cache: True 时优先返回本地缓存，不做网络请求。GUI 首次打开版本页时
+            用这个避免网络慢时白屏；用户点“刷新”再用默认的远程优先逻辑。
+
+    Returns:
+        list[dict]: Mojang 版本列表
+    """
     # 首先从本地的文件读取，远程不可用时作为备选
     local_data_path = _cache_path()
     local_data = _read_cache(local_data_path)
+
+    if prefer_cache and local_data.get("versions"):
+        return _filter_versions(local_data.get("versions"), version_type, limit)
 
     try:
         remote_data = http_get(MOJANG_VERSION_LIST_URL).json()
@@ -57,16 +83,7 @@ def get_version_manifest(version_type: str, limit=0):
     else:
         raise requests.RequestException("无法获取 Minecraft 版本列表：网络不可用，本地也没有缓存")
 
-    # 列版本列表
-    versions_list = []
-    if isinstance(data, list):
-        for version in data:
-            if version_type == "all" or version.get('type') == version_type:
-                versions_list.append(version)
-        if limit:
-            return versions_list[:limit]
-
-    return versions_list
+    return _filter_versions(data, version_type, limit)
 
 
 def find_version(version_id: str):
