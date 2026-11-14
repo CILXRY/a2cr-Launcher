@@ -5,7 +5,7 @@ from string import Template
 from a2cr_launcher.auth.offline import offline_uuid
 from a2cr_launcher.core.paths import VERSIONS_DIR, ASSETS_DIR, LIBRARIES_DIR, LOG_CONFIGS_DIR
 from a2cr_launcher.core.platform_info import current_platform
-from a2cr_launcher.java.discover import find_java
+from a2cr_launcher.java.discover import find_java, java_executable
 from a2cr_launcher.launch.classpath import build_classpath
 from a2cr_launcher.launch.rules import is_allowed, feature_rule_list
 
@@ -62,7 +62,7 @@ def _build_game_arguments(arg_raw, values):
     return arguments
 
 
-def build_arguments(meta, game_dir: Path, name="a2Cr", max_memory="4G"):
+def build_arguments(meta, game_dir: Path, name="a2Cr", max_memory="4G", java_path=None):
     version = meta["id"]
     base_version = meta.get("_baseVersion", version)
     main_class = str(meta.get("mainClass") or "")
@@ -101,7 +101,14 @@ def build_arguments(meta, game_dir: Path, name="a2Cr", max_memory="4G"):
     arg_raw = meta.get('arguments')
 
     # Java Execution
-    arguments.append(find_java(meta["javaVersion"]["majorVersion"], ))
+    # 设置里可以固定一个 Java；路径失效时明确报错，而不是悄悄换一个版本启动
+    if java_path:
+        executable = java_executable(java_path)
+        if executable is None:
+            raise RuntimeError(f"设置中的 Java 路径无效：{java_path}")
+        arguments.append(executable)
+    else:
+        arguments.append(find_java(meta["javaVersion"]["majorVersion"], ))
 
     # Java Arguments
     arguments.extend(_build_java_arguments(arg_raw, values, meta, dropped_args))

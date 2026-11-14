@@ -1,6 +1,19 @@
 # a2Cr Launcher
 
-一个使用 Python 制作的 CLI Minecraft 启动器
+一个使用 Python 制作的 Minecraft 启动器（CLI + 图形界面）
+
+![首页](docs/screenshots/home-dark.png)
+
+## 界面预览
+
+| 实例 | 版本 |
+|---|---|
+| ![实例](docs/screenshots/instances.png) | ![版本](docs/screenshots/versions.png) |
+
+| 导入 | 浅色主题 |
+|---|---|
+| ![导入](docs/screenshots/import-light.png) | ![浅色](docs/screenshots/home-light.png) |
+
 
 ## 如何开发
 
@@ -36,6 +49,30 @@
 6. 最后，在 PyCharm 里打开这个存放代码的文件夹，在终端里运行 `uv run al` 即可。
 
 ## 使用
+
+### 图形界面
+
+```bash
+uv run al-gui
+```
+
+图形界面提供：
+
+- 首页继续游玩、实例卡片和运行状态
+- 导入 / 更新 Modrinth、CurseForge、HMCL / PCL 整合包
+- 启动、停止游戏，实时查看整合包和游戏日志
+- 浏览 Mojang 版本列表并安装原版
+- 设置玩家名、最大内存、Java 运行时和主题
+- 删除实例时先移入启动器回收站（`~/.a2CrLauncher/.trash`）
+
+如果在开发时需要把启动器数据放到别的目录（例如做界面截图、避免动真实实例）：
+
+```powershell
+$env:A2CR_ROOT = "$PWD\artifacts\demo-root"
+uv run al-gui
+```
+
+### 命令行
 
 ```bash
 uv run al version                         # 查看可用版本

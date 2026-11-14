@@ -89,7 +89,16 @@ def get_java_version(path) -> tuple[int, str] | None:
 
 
 def list_jdks(*custom_paths: Path):
-    searched: list[tuple[Path, int]] = []
+    """返回 ``(Java 目录, 主版本)`` 列表，保持 CLI 原有的返回格式。"""
+    return [(path, major) for path, major, _version in _collect_jdks(*custom_paths)]
+
+
+def _collect_jdks(*custom_paths: Path) -> list[tuple[Path, int, str]]:
+    """扫描常见的 Java 安装位置，返回 ``(目录, 主版本, 完整版本)``。
+
+    把“搜索”和“转换格式”拆开，是因为 CLI 只需要主版本，而设置界面想给用户
+    显示完整的 Java 版本号（例如 25.0.1）。
+    """
     searches: list[Path] = []
 
     java_home = os.getenv("JAVA_HOME")
@@ -114,13 +123,40 @@ def list_jdks(*custom_paths: Path):
         if root.is_dir():
             searches.append(root)
 
+    found: list[tuple[Path, int, str]] = []
     for search in searches:
         result = get_java_version(search)
         if result is not None:
-            searched.append((search, result[0]))
+            found.append((search, result[0], result[1]))
 
     # 去重，同时保持顺序
-    return list(dict.fromkeys(searched))
+    return list(dict.fromkeys(found))
+
+
+def list_java_runtimes(*custom_paths: Path) -> list[dict]:
+    """给 GUI 用的 Java 列表，按主版本从新到旧排列。"""
+    runtimes = [
+        {"path": str(path), "major": major, "version": version}
+        for path, major, version in _collect_jdks(*custom_paths)
+    ]
+    runtimes.sort(key=lambda item: (-item["major"], item["path"].lower()))
+    return runtimes
+
+
+def java_executable(path) -> str | None:
+    """把用户选的 Java 目录/可执行文件解析成真正的 java 路径。
+
+    设置界面允许用户选目录（更直观），也允许直接选 ``java.exe``。传入的路径
+    不存在或不像 Java 时返回 ``None``，由调用方决定是回退到自动发现还是报错。
+    """
+    target = Path(path)
+    if target.is_file():
+        return str(target)
+    name = "java.exe" if os.name == "nt" else "java"
+    candidate = Path(target, "bin", name)
+    if candidate.is_file():
+        return str(candidate)
+    return None
 
 
 def find_java(required, *custom_paths):

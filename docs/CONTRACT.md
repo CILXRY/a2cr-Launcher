@@ -40,22 +40,62 @@ def install(meta: dict, on_progress: Callable | None = None) -> bool:
 
 ```python
 # launch/process.py
-def launch(cmd: list[str], game_dir: Path, on_log=None) -> int:
+def launch(cmd: list[str], game_dir: Path, on_log=None, on_process=None) -> int:
 ```
 
 - `on_log(text)`：每读到一行游戏输出就回调一次；不传则打印到控制台
+- `on_process(proc)`：进程创建后回调一次，参数是 `subprocess.Popen`，GUI 用它停止游戏
 - 返回游戏进程的退出码
+
+### 数据目录
+
+所有目录都从 `core/paths.py` 取。默认根目录是 `~/.a2CrLauncher`，可以用
+`A2CR_ROOT` 环境变量整体覆盖（便携版、自动化测试和截图演示用）。
+首次启动调用 `create_launcher_dirs()` 创建缺少的目录；issue #4 的问题就出在这里。
 
 ### 给界面的入口
 
 ```python
 # services.py
 def list_installed() -> list[str]              # 返回版本号，不是路径
-def install_version(version_id: str, on_progress=None) -> bool
-def launch_version(version_id: str, max_memory="4G", name="a2Cr", on_log=None) -> int
+def list_installed_versions() -> list[dict]    # 原版 + 加载器版本，读本地 JSON
+def list_instances() -> list[dict]             # 整合包实例，附带 path/loader/mods_count
+def inspect_modpack(path) -> dict              # 只解析不安装，给导入预检
+def import_modpack(path, name=None, *, on_log=None, on_progress=None, cancel=None,
+                   update_folder=None) -> dict
+def list_versions(version_type="release", limit=0) -> list[dict]
+def list_java_runtimes() -> list[dict]
+def install_version(version_id, on_progress=None, cancel=None) -> bool
+def launch_version(version_id, max_memory="4G", name="a2Cr", on_log=None,
+                   on_process=None, java_path=None) -> int
+def launch_instance(folder, max_memory="4G", name="a2Cr", on_log=None,
+                    on_process=None, java_path=None) -> int
+def trash_instance(folder) -> Path
+def load_settings() / save_settings(...) -> dict
 ```
 
 `services.py` 是 UI 唯一允许依赖的模块。UI 不许直接 import `core/`、`meta/`、`launch/`。
+
+界面需要新增能力时，优先在 `services.py` 加一个薄封装，不要在页面里绕过它。
+
+### 导入进度
+
+`modpack.import_pack(..., on_progress=...)` 的回调签名是：
+
+```python
+on_progress(stage: str, done: int, total: int, detail: str)
+```
+
+`stage` 目前是 `parse` / `resolve` / `vanilla` / `loader` / `extract` / `files` / `done`。
+新增阶段时同步更新 `ui/dialogs.py` 的 `STAGE_LABELS`。
+
+### 取消
+
+`download(..., cancel=callable)` 和 `install(..., cancel=callable)` 在取消时抛出
+`core.download.DownloadCancelled`（属于 `RuntimeError` 子类）。`services.py` 会把它
+重新导出为 `services.DownloadCancelled`，UI 只能从这里捕获——不要在 `ui/` 里直接
+import `core/`。上层必须**先**捕获它，不要把它当成普通下载失败包一层 `RuntimeError`，
+否则界面无法区分“取消”和“失败”。已写入的 `.part` 文件会保留，下次继续续传。
 
 ### 版本元数据
 
