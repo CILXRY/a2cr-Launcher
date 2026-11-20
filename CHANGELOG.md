@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2-beta.1](https://github.com/CILXRY/a2cr-Launcher/compare/a2cr-launcher-v0.3.2-beta...a2cr-launcher-v0.3.2-beta.1) (2026-11-20)
+
+
+### Features
+
+* instance model ([#17](https://github.com/CILXRY/a2cr-Launcher/issues/17)) ([4e5a653](https://github.com/CILXRY/a2cr-Launcher/commit/4e5a653b7e919a497e597515edb76de9672a549a))
+
 ## [0.3.2-beta](https://github.com/CILXRY/a2cr-Launcher/compare/a2cr-launcher-v0.3.1...a2cr-launcher-v0.3.2-beta) (2026-11-16)
 
 

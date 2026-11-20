@@ -1,6 +1,6 @@
 [project]
 name = "a2cr-launcher"
-version = "0.3.2-beta"
+version = "0.3.2-beta.1"
 description = "A minimal Minecraft Launcher"
 readme = "README.md"
 authors = [
